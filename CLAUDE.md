@@ -7,6 +7,8 @@ Strumenti per tenere gli articoli Dev.to come file Markdown in un repo Git (il r
 - `web/server.py`: server locale, solo standard library Python. Serve `web/index.html`, fa da proxy verso l'API di Dev.to aggiungendo l'header `api-key` (letto da `DEV_TO_API_KEY`, il browser da solo non può mandarlo cross-origin) e legge i file degli articoli.
 - `web/index.html`: la pagina, in un solo file, senza dipendenze.
 - `scripts/import_articles.py`: importazione bulk iniziale, richiede `httpx`.
+- `scripts/export_published.py`: copia i soli articoli con `published: true` in una cartella di un altro repo (body identico, front-matter ridotto a `id`, `title`, `url`, `tags`), per alimentare una wiki senza esporre le bozze. Riusa parser e formato di `web/server.py` (`split_front_matter`, `render_article`). Solo standard library.
+- `tests/`: test in `unittest`, solo standard library: `python3 -m unittest discover tests`.
 - `.claude/skills/devto-articles/SKILL.md`: la procedura operativa per l'agente (creazione, pull, push, conflitti, pubblicazione).
 
 ## Front-matter di ogni articolo

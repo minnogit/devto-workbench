@@ -231,14 +231,21 @@ def download_assets(body_markdown: str, article_id) -> None:
             print(f"  WARNING: impossibile scaricare {url}: {e}", file=sys.stderr)
 
 
-def write_local_article(path: pathlib.Path, front_matter: dict, body: str) -> None:
+def render_article(front_matter: dict, body: str) -> str:
+    """Testo di un file articolo: front-matter (una riga `chiave: <JSON>` per
+    campo), riga vuota, body esatto. Separata dalla scrittura perché
+    scripts/export_published.py confronta il testo prima di toccare il disco."""
     lines = ["---"]
     for key, value in front_matter.items():
         lines.append(f"{key}: {json.dumps(value, ensure_ascii=False)}")
     lines.append("---")
     lines.append("")
     lines.append(body)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    return "\n".join(lines)
+
+
+def write_local_article(path: pathlib.Path, front_matter: dict, body: str) -> None:
+    path.write_text(render_article(front_matter, body), encoding="utf-8")
 
 
 def find_remote_article(article_id: int) -> dict | None:

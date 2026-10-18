@@ -8,7 +8,8 @@ Il repo contiene tre cose:
 
 - `web/`: un'interfaccia web locale (solo standard library Python) con vista elenco, card e kanban per stato editoriale, stato di sync di ogni articolo, confronto riga per riga e pull/push per i casi non ambigui;
 - `.claude/skills/devto-articles/`: una skill per Claude Code che gestisce import, pull, push, pubblicazione e conflitti, appoggiandosi a un server MCP per Dev.to;
-- `scripts/import_articles.py`: l'importazione bulk iniziale di tutti gli articoli.
+- `scripts/import_articles.py`: l'importazione bulk iniziale di tutti gli articoli;
+- `scripts/export_published.py`: l'esportazione dei soli articoli pubblicati in un'altra cartella, per alimentare una wiki o una base di conoscenza.
 
 Gli articoli non stanno qui. Servono un repo a parte, meglio privato perché le bozze lo sono, con una cartella `articles/`.
 
@@ -94,6 +95,23 @@ Per ogni articolo confronta tre cose: l'hash del body locale, quello del body re
 ### Kanban
 
 La vista Kanban ha una colonna per stato editoriale: Bozza, Revisionata, Pronta, Pubblicato. Trascinare una bozza tra le prime tre colonne imposta `stato` nel front-matter del file, senza chiamate a Dev.to. La colonna Pubblicato non accetta drop: pubblicare è un'azione a parte, non un trascinamento. Lo stato di sync resta un badge sulla card.
+
+## Esportare gli articoli pubblicati
+
+Se vuoi usare gli articoli come sorgenti di una wiki o di una base di conoscenza, senza esporre le bozze, `scripts/export_published.py` copia in una cartella a parte solo quelli con `published: true`:
+
+```bash
+python3 /percorso/di/devto-workbench/scripts/export_published.py --dest /percorso/altro-repo/raw/devto
+```
+
+Legge `articles/` dalla cartella da cui lo lanci (o da `ARTICLES_DIR`, o da `--articles-dir`) e non scrive mai lì. Per ogni articolo pubblicato crea un file con lo stesso nome, il body identico byte per byte e un front-matter ridotto a `id`, `title`, `url` e `tags`. Restano fuori `devto_synced_hash`, `stato`, `reviewed` e `cover_image`: cambiano senza che il testo cambi, e uno strumento che confronta i file con un checksum li vedrebbe come modificati.
+
+- `--dry-run` mostra cosa farebbe senza scrivere.
+- Una seconda esecuzione senza modifiche non tocca nessun file.
+- Se un articolo esportato non è più pubblicato (è tornato bozza, o è stato cancellato) il file resta nella destinazione e viene segnalato. `--prune` lo rimuove, ma solo tra i file che hanno un `id` nel front-matter.
+- Rifiuta una destinazione che coincide con la cartella degli articoli o la contiene.
+
+Si fida del `published` nel front-matter locale: conviene lanciarlo dopo un sync, perché un articolo tornato bozza sul portale risulterebbe ancora esportato. La destinazione va in un repo diverso da quello degli articoli, e lì si committa il risultato.
 
 ## Skill per Claude Code
 
