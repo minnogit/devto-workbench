@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+.mcp.json
+
+# I contenuti non vivono in questo repo: stanno in un repo a parte (privato,
+# perché le bozze lo sono). Se il server o lo script di import vengono lanciati
+# da qui per errore creano queste cartelle: così non finiscono in un commit.
+/articles/
+/assets/
+
+# Cache locale di ggshield (la crea nella cartella da cui si lancia la scansione)
+.cache_ggshield

@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Articoli dev.to</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #6b7280;
+    --border: #e5e7eb;
+    --row-hover: #f9fafb;
+    --pill-bg: #f3f4f6;
+    --ok: #15803d;
+    --ok-bg: #dcfce7;
+    --warn: #b45309;
+    --warn-bg: #fef3c7;
+    --info: #1d4ed8;
+    --info-bg: #dbeafe;
+    --danger: #b91c1c;
+    --danger-bg: #fee2e2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --fg: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #2a2e37;
+      --row-hover: #171a21;
+      --pill-bg: #1f232c;
+      --ok: #4ade80;
+      --ok-bg: #14532d;
+      --warn: #fbbf24;
+      --warn-bg: #78350f;
+      --info: #93c5fd;
+      --info-bg: #1e3a8a;
+      --danger: #fca5a5;
+      --danger-bg: #7f1d1d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px;
+  }
+  header {
+    padding: 20px 20px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  input[type="search"], select {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg);
+    color: var(--fg);
+    font-size: 13px;
+  }
+  input[type="search"] { min-width: 220px; flex: 1 1 220px; }
+  button {
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--pill-bg);
+    color: var(--fg);
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { filter: brightness(1.1); }
+  .status-line { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  main { padding: 0 20px 40px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 720px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { cursor: pointer; user-select: none; color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+  th:hover { color: var(--fg); }
+  tbody tr:hover { background: var(--row-hover); }
+  a { color: var(--info); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .tag {
+    display: inline-block;
+    background: var(--pill-bg);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 12px;
+    margin: 0 4px 4px 0;
+    color: var(--muted);
+  }
+  .pill {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .pill-ok { color: var(--ok); background: var(--ok-bg); }
+  .pill-warn { color: var(--warn); background: var(--warn-bg); }
+  .pill-info { color: var(--info); background: var(--info-bg); }
+  .pill-danger { color: var(--danger); background: var(--danger-bg); }
+  .id-col { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+  .sort-arrow { opacity: .5; margin-left: 4px; }
+
+  .view-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .view-toggle button { border: none; border-radius: 0; }
+  .view-toggle button.active { background: var(--info-bg); color: var(--info); }
+
+  .sort-bar { display: flex; align-items: center; gap: 6px; margin: 16px 0 4px; }
+  .sort-bar .muted { color: var(--muted); font-size: 12px; }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    padding: 4px 0 20px;
+  }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--bg);
+  }
+  .card:hover { background: var(--row-hover); }
+  .card-title { font-weight: 600; font-size: 14px; line-height: 1.35; }
+  .card-tags { display: flex; flex-wrap: wrap; }
+  .card-pills { display: flex; flex-wrap: wrap; gap: 6px; }
+  .card-footer { display: flex; justify-content: space-between; align-items: center; margin-top: auto; padding-top: 6px; color: var(--muted); font-size: 12px; }
+
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(250px, 1fr));
+    gap: 14px;
+    padding: 16px 0 20px;
+    align-items: start;
+  }
+  .kanban-col {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--row-hover);
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+  }
+  .kanban-col-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: var(--muted);
+  }
+  .kanban-col-body { padding: 0 10px 10px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .kanban-col.drag-over { outline: 2px dashed var(--info); outline-offset: -2px; }
+  .kanban-col-hint { color: var(--muted); font-size: 12px; padding: 4px 2px; }
+  .card[draggable="true"] { cursor: grab; }
+  .card.dragging { opacity: .4; }
+
+  .reviewed-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px 3px 4px;
+    font-size: 12px;
+    cursor: pointer;
+    background: var(--pill-bg);
+    color: var(--muted);
+  }
+  .reviewed-toggle.on { background: var(--info-bg); color: var(--info); border-color: var(--info); }
+  .reviewed-toggle .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .reviewed-toggle.on .dot { background: var(--info); }
+
+  .modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .5);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 100;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--bg);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    max-width: 900px;
+    width: 100%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .modal-header h2 { font-size: 15px; margin: 0; }
+  .modal-body { padding: 0; overflow: auto; }
+  .diff-line { white-space: pre-wrap; word-break: break-word; padding: 1px 16px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; line-height: 1.5; }
+  .diff-add { background: var(--ok-bg); color: var(--ok); }
+  .diff-del { background: var(--danger-bg); color: var(--danger); }
+  .diff-hunk { background: var(--pill-bg); color: var(--muted); }
+
+  .diff-view-toggle { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-right: 8px; }
+  .diff-view-toggle button { border: none; border-radius: 0; padding: 5px 10px; font-size: 12px; }
+  .diff-view-toggle button.active { background: var(--info-bg); color: var(--info); }
+
+  .diff-sbs-row { display: grid; grid-template-columns: 1fr 1fr; }
+  .diff-sbs-cell {
+    white-space: pre-wrap;
+    word-break: break-word;
+    padding: 1px 12px;
+    font-family: ui-monospace, "SF Mono", Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    border-left: 1px solid var(--border);
+  }
+  .diff-sbs-cell:first-child { border-left: none; }
+  .diff-sbs-cell.diff-empty { background: var(--pill-bg); }
+  .diff-sbs-header { position: sticky; top: 0; background: var(--bg); z-index: 1; }
+  .diff-sbs-header .diff-sbs-cell { font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); padding: 8px 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="pageTitle">Articoli dev.to</h1>
+  <div class="toolbar">
+    <input id="search" type="search" placeholder="Cerca per titolo o tag…">
+    <select id="filterStatus">
+      <option value="">Tutti gli stati</option>
+      <option value="allineato">Allineato</option>
+      <option value="remoto_aggiornato">Remoto più recente (pull sicuro)</option>
+      <option value="locale_da_pushare">Locale più recente (push sicuro)</option>
+      <option value="conflitto">Conflitto</option>
+      <option value="solo_remoto">Solo su dev.to</option>
+      <option value="solo_locale">Solo locale</option>
+    </select>
+    <select id="filterPublished">
+      <option value="">Bozze e pubblicati</option>
+      <option value="true">Solo pubblicati</option>
+      <option value="false">Solo bozze</option>
+    </select>
+    <button id="refresh">↻ Aggiorna</button>
+    <div class="view-toggle">
+      <button id="viewList" title="Vista elenco">☰ Elenco</button>
+      <button id="viewCards" title="Vista card">▦ Card</button>
+      <button id="viewKanban" title="Vista kanban per stato editoriale">▥ Kanban</button>
+    </div>
+  </div>
+  <div class="status-line" id="statusLine"></div>
+</header>
+<main>
+  <table id="tableView">
+    <thead>
+      <tr>
+        <th data-sort="title">Titolo<span class="sort-arrow"></span></th>
+        <th data-sort="tags">Tag<span class="sort-arrow"></span></th>
+        <th data-sort="stato">Stato<span class="sort-arrow"></span></th>
+        <th data-sort="status">Sync<span class="sort-arrow"></span></th>
+        <th data-sort="edited_at">Ultima modifica<span class="sort-arrow"></span></th>
+        <th data-sort="id">ID<span class="sort-arrow"></span></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <div class="sort-bar" id="cardSortBar" style="display:none">
+    <span class="muted">Ordina per:</span>
+    <select id="cardSortKey">
+      <option value="id">ID (≈ data di creazione)</option>
+      <option value="edited_at">Ultima modifica</option>
+      <option value="title">Titolo</option>
+      <option value="stato">Stato</option>
+      <option value="status">Sync</option>
+    </select>
+    <button id="cardSortDir" title="Inverti ordine">▼</button>
+  </div>
+  <div class="card-grid" id="cards" style="display:none"></div>
+  <div class="kanban" id="kanban" style="display:none"></div>
+
+  <div class="empty" id="empty" style="display:none">Nessun articolo trovato.</div>
+</main>
+
+<div class="modal-backdrop" id="diffBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="diffTitle">Differenze</h2>
+      <div style="display:flex; align-items:center;">
+        <div class="diff-view-toggle">
+          <button id="diffViewUnified" title="Vista unificata (righe + / -)">Unificato</button>
+          <button id="diffViewSbs" title="Vista fianco a fianco">Fianco a fianco</button>
+        </div>
+        <button id="diffClose">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" id="diffBody"></div>
+  </div>
+</div>
+
+<script>
+const state = {
+  data: [],
+  // Ordinamento di default: ID decrescente. Gli id Dev.to sono assegnati in
+  // sequenza, quindi equivale a "più recenti prima" — a differenza di
+  // "ultima modifica", che su molti articoli è null (Dev.to non lo popola
+  // sempre) e produceva un ordine poco intellegibile.
+  sortKey: "id",
+  sortDir: -1,
+  view: localStorage.getItem("devto-view") || "list", // "list" | "cards"
+};
+
+const STATUS_LABEL = {
+  allineato:          { label: "Allineato",              cls: "pill-ok" },
+  remoto_aggiornato:  { label: "Remoto più recente",     cls: "pill-info" },
+  locale_da_pushare:  { label: "Locale più recente",     cls: "pill-warn" },
+  conflitto:          { label: "Conflitto",              cls: "pill-danger" },
+  solo_remoto:        { label: "Solo su dev.to",         cls: "pill-info" },
+  solo_locale:        { label: "Solo locale",            cls: "pill-danger" },
+};
+
+function fmtDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString("it-IT", { year: "numeric", month: "short", day: "numeric" });
+}
+
+const ACTION_BY_STATUS = {
+  solo_remoto:       { endpoint: "import", label: "⬇ Scarica in locale",
+                        title: "Crea il file locale per questo articolo (bootstrap, non aggiorna articoli già tracciati)" },
+  remoto_aggiornato: { endpoint: "pull",   label: "⬇ Scarica aggiornamento",
+                        title: "Sovrascrive il file locale con la versione attuale di Dev.to (sicuro: il locale non è stato toccato)" },
+  locale_da_pushare: { endpoint: "push",   label: "⬆ Manda online",
+                        title: "Aggiorna l'articolo su Dev.to col contenuto locale (sicuro: il remoto non è stato toccato)" },
+};
+
+async function runAction(endpoint, id, btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    const res = await fetch(`/api/${endpoint}/${id}`, { method: "POST" });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
+    await load();
+  } catch (e) {
+    alert("Errore: " + e.message);
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+// Colonne del kanban = stato editoriale. "pubblicato" lo deriva il server da
+// `published`: non si imposta trascinando (vedi bindKanbanDrop).
+const KANBAN_COLUMNS = [
+  { key: "bozza",       label: "Bozza",       cls: "pill-info" },
+  { key: "revisionata", label: "Revisionata", cls: "pill-warn" },
+  { key: "pronta",      label: "Pronta",      cls: "pill-ok" },
+  { key: "pubblicato",  label: "Pubblicato",  cls: "pill-ok" },
+];
+const STATO_BOZZA_KEYS = new Set(["bozza", "revisionata", "pronta"]);
+
+async function moveToStato(r, newStato) {
+  if (r.stato === newStato) return;
+  const prev = r.stato;
+  r.stato = newStato; // ottimistico: se il server rifiuta si ripristina
+  render();
+  try {
+    const res = await fetch(`/api/stato/${r.id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stato: newStato }),
+    });
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
+  } catch (err) {
+    r.stato = prev;
+    render();
+    alert("Errore: " + err.message);
+  }
+}
+
+function reviewedToggle(r) {
+  // null = nessun file locale (es. solo_remoto): non c'è nulla da segnare.
+  if (r.reviewed === null || r.reviewed === undefined) return null;
+  const btn = document.createElement("button");
+  btn.className = "reviewed-toggle" + (r.reviewed ? " on" : "");
+  btn.title = "Promemoria locale: segna che questo articolo è già stato rivisto (bug tecnici, stile). Resta valido anche dopo la pubblicazione.";
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  const label = document.createElement("span");
+  label.textContent = r.reviewed ? "Rivisto" : "Segna come rivisto";
+  btn.appendChild(dot);
+  btn.appendChild(label);
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    btn.disabled = true;
+    try {
+      const res = await fetch(`/api/toggle-reviewed/${r.id}`, { method: "POST" });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
+      r.reviewed = payload.reviewed;
+      btn.classList.toggle("on", r.reviewed);
+      label.textContent = r.reviewed ? "Rivisto" : "Segna come rivisto";
+    } catch (err) {
+      alert("Errore: " + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  return btn;
+}
+
+function importButton(r) {
+  if (r.status === "conflitto") {
+    const span = document.createElement("span");
+    span.className = "muted";
+    span.textContent = "risolvi con devto-articles";
+    return span;
+  }
+  const action = ACTION_BY_STATUS[r.status];
+  if (!action) return null;
+  const btn = document.createElement("button");
+  btn.textContent = action.label;
+  btn.title = action.title;
+  btn.addEventListener("click", () => runAction(action.endpoint, r.id, btn));
+  return btn;
+}
+
+// Stati in cui esistono davvero due versioni (locale + remoto) da
+// confrontare — solo_remoto e solo_locale non ce l'hanno, allineato non
+// serve.
+const DIFFABLE_STATUSES = new Set(["remoto_aggiornato", "locale_da_pushare", "conflitto"]);
+
+function diffButton(r) {
+  if (!DIFFABLE_STATUSES.has(r.status)) return null;
+  const btn = document.createElement("button");
+  btn.textContent = "🔍 Differenze";
+  btn.title = "Mostra il confronto riga per riga tra locale e Dev.to (sola consultazione, nessuna scrittura)";
+  btn.addEventListener("click", () => showDiff(r.id, r.title));
+  return btn;
+}
+
+const diffState = { payload: null, mode: localStorage.getItem("devto-diff-view") || "unified" };
+
+function renderDiffLines(container, diffText) {
+  container.innerHTML = "";
+  const lines = diffText.split("\n");
+  for (const line of lines) {
+    if (line === "" ) continue;
+    const div = document.createElement("div");
+    div.className = "diff-line";
+    if (line.startsWith("+++") || line.startsWith("---") || line.startsWith("@@")) {
+      div.classList.add("diff-hunk");
+    } else if (line.startsWith("+")) {
+      div.classList.add("diff-add");
+    } else if (line.startsWith("-")) {
+      div.classList.add("diff-del");
+    }
+    div.textContent = line;
+    container.appendChild(div);
+  }
+}
+
+function renderDiffSideBySide(container, rows) {
+  container.innerHTML = "";
+
+  const header = document.createElement("div");
+  header.className = "diff-sbs-row diff-sbs-header";
+  const hLeft = document.createElement("div");
+  hLeft.className = "diff-sbs-cell";
+  hLeft.textContent = "locale";
+  const hRight = document.createElement("div");
+  hRight.className = "diff-sbs-cell";
+  hRight.textContent = "dev.to";
+  header.appendChild(hLeft);
+  header.appendChild(hRight);
+  container.appendChild(header);
+
+  for (const row of rows) {
+    const line = document.createElement("div");
+    line.className = "diff-sbs-row";
+
+    const left = document.createElement("div");
+    left.className = "diff-sbs-cell";
+    const right = document.createElement("div");
+    right.className = "diff-sbs-cell";
+
+    if (row.left === null) {
+      left.classList.add("diff-empty");
+    } else {
+      left.textContent = row.left;
+      if (row.type === "delete" || row.type === "replace") left.classList.add("diff-del");
+    }
+    if (row.right === null) {
+      right.classList.add("diff-empty");
+    } else {
+      right.textContent = row.right;
+      if (row.type === "insert" || row.type === "replace") right.classList.add("diff-add");
+    }
+
+    line.appendChild(left);
+    line.appendChild(right);
+    container.appendChild(line);
+  }
+}
+
+function renderDiffCurrentMode() {
+  const body = document.getElementById("diffBody");
+  if (!diffState.payload) return;
+  if (diffState.mode === "sbs") {
+    renderDiffSideBySide(body, diffState.payload.rows || []);
+  } else {
+    renderDiffLines(body, diffState.payload.diff || "");
+  }
+}
+
+function setDiffMode(mode) {
+  diffState.mode = mode;
+  try { localStorage.setItem("devto-diff-view", mode); } catch (e) { /* ignora, non critico */ }
+  document.getElementById("diffViewUnified").classList.toggle("active", mode === "unified");
+  document.getElementById("diffViewSbs").classList.toggle("active", mode === "sbs");
+  renderDiffCurrentMode();
+}
+
+async function showDiff(id, title) {
+  const backdrop = document.getElementById("diffBackdrop");
+  const body = document.getElementById("diffBody");
+  document.getElementById("diffTitle").textContent = "Differenze — " + (title || ("#" + id));
+  diffState.payload = null;
+  body.innerHTML = '<div class="diff-line">Caricamento…</div>';
+  backdrop.classList.add("open");
+  setDiffMode(diffState.mode);
+  try {
+    const res = await fetch(`/api/diff/${id}`);
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
+    if (!payload.diff) {
+      body.innerHTML = '<div class="diff-line">Nessuna differenza di testo (solo metadati sono cambiati).</div>';
+      diffState.payload = null;
+      return;
+    }
+    diffState.payload = payload;
+    renderDiffCurrentMode();
+  } catch (e) {
+    body.innerHTML = '<div class="diff-line diff-del">Errore: ' + e.message + '</div>';
+  }
+}
+
+function closeDiff() {
+  document.getElementById("diffBackdrop").classList.remove("open");
+}
+
+document.getElementById("diffViewUnified").addEventListener("click", () => setDiffMode("unified"));
+document.getElementById("diffViewSbs").addEventListener("click", () => setDiffMode("sbs"));
+document.getElementById("diffClose").addEventListener("click", closeDiff);
+document.getElementById("diffBackdrop").addEventListener("click", (e) => {
+  if (e.target === e.currentTarget) closeDiff();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeDiff();
+});
+
+async function load() {
+  const statusLine = document.getElementById("statusLine");
+  statusLine.textContent = "Caricamento…";
+  try {
+    const res = await fetch("/api/articles");
+    const payload = await res.json();
+    if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
+    state.data = payload;
+    statusLine.textContent = `${payload.length} articoli — aggiornato alle ${new Date().toLocaleTimeString("it-IT")}`;
+    render();
+  } catch (e) {
+    statusLine.textContent = "Errore: " + e.message;
+  }
+}
+
+function applyFiltersAndSort() {
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const statusFilter = document.getElementById("filterStatus").value;
+  const publishedFilter = document.getElementById("filterPublished").value;
+
+  let rows = state.data.filter(r => {
+    if (statusFilter && r.status !== statusFilter) return false;
+    if (publishedFilter && String(!!r.published) !== publishedFilter) return false;
+    if (q) {
+      const hay = (r.title || "").toLowerCase() + " " + (r.tags || []).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a, b) => {
+    let av = a[state.sortKey], bv = b[state.sortKey];
+    if (state.sortKey === "tags") { av = (av || []).join(","); bv = (bv || []).join(","); }
+    if (av == null) av = "";
+    if (bv == null) bv = "";
+    if (av < bv) return -1 * state.sortDir;
+    if (av > bv) return 1 * state.sortDir;
+    return 0;
+  });
+
+  return rows;
+}
+
+function statusPill(r) {
+  const s = STATUS_LABEL[r.status] || { label: r.status, cls: "pill" };
+  const span = document.createElement("span");
+  span.className = "pill " + s.cls;
+  span.textContent = s.label;
+  return span;
+}
+
+function statoPill(r) {
+  const col = KANBAN_COLUMNS.find(c => c.key === r.stato) || KANBAN_COLUMNS[0];
+  const span = document.createElement("span");
+  span.className = "pill " + col.cls;
+  span.textContent = col.label;
+  return span;
+}
+
+function render() {
+  const rows = applyFiltersAndSort();
+  const empty = document.getElementById("empty");
+  empty.style.display = rows.length ? "none" : "block";
+
+  if (state.view === "kanban") {
+    renderKanban(rows);
+  } else if (state.view === "cards") {
+    renderCards(rows);
+  } else {
+    renderList(rows);
+  }
+}
+
+function renderCards(rows) {
+  const grid = document.getElementById("cards");
+  grid.innerHTML = "";
+  for (const r of rows) grid.appendChild(buildCard(r, { showStato: true }));
+}
+
+function renderKanban(rows) {
+  const board = document.getElementById("kanban");
+  board.innerHTML = "";
+
+  for (const colDef of KANBAN_COLUMNS) {
+    const colRows = rows.filter(r => r.stato === colDef.key);
+    const col = document.createElement("div");
+    col.className = "kanban-col";
+    col.dataset.stato = colDef.key;
+
+    const header = document.createElement("div");
+    header.className = "kanban-col-header";
+    const name = document.createElement("span");
+    name.textContent = colDef.label;
+    const count = document.createElement("span");
+    count.textContent = colRows.length;
+    header.appendChild(name);
+    header.appendChild(count);
+    col.appendChild(header);
+
+    const body = document.createElement("div");
+    body.className = "kanban-col-body";
+    for (const r of colRows) body.appendChild(buildCard(r, { showStato: false, draggable: true }));
+    if (colDef.key === "pubblicato") {
+      const hint = document.createElement("div");
+      hint.className = "kanban-col-hint";
+      hint.textContent = "Non si pubblica trascinando: la pubblicazione è un'azione a parte.";
+      body.appendChild(hint);
+    }
+    col.appendChild(body);
+
+    bindKanbanDrop(col, colDef.key);
+    board.appendChild(col);
+  }
+}
+
+function bindKanbanDrop(col, key) {
+  // "pubblicato" non accetta drop: senza preventDefault il browser mostra
+  // il cursore di divieto e l'evento drop non parte.
+  if (!STATO_BOZZA_KEYS.has(key)) return;
+  col.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    col.classList.add("drag-over");
+  });
+  col.addEventListener("dragleave", (e) => {
+    if (!col.contains(e.relatedTarget)) col.classList.remove("drag-over");
+  });
+  col.addEventListener("drop", (e) => {
+    e.preventDefault();
+    col.classList.remove("drag-over");
+    const id = Number(e.dataTransfer.getData("text/plain"));
+    const r = state.data.find(x => x.id === id);
+    if (r) moveToStato(r, key);
+  });
+}
+
+function buildCard(r, opts) {
+  {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    // Trascinabile solo una bozza con file locale: stato e reviewed vivono
+    // nel front-matter, e un articolo pubblicato o solo remoto non ne ha uno
+    // da spostare.
+    if (opts.draggable && r.local_file && !r.published) {
+      card.draggable = true;
+      card.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", String(r.id));
+        e.dataTransfer.effectAllowed = "move";
+        card.classList.add("dragging");
+      });
+      card.addEventListener("dragend", () => card.classList.remove("dragging"));
+    }
+
+    const title = document.createElement("div");
+    title.className = "card-title";
+    const a = document.createElement("a");
+    a.href = r.url || "#";
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = r.title || "(senza titolo)";
+    title.appendChild(a);
+    card.appendChild(title);
+
+    const pills = document.createElement("div");
+    pills.className = "card-pills";
+    if (opts.showStato) pills.appendChild(statoPill(r));
+    pills.appendChild(statusPill(r));
+    card.appendChild(pills);
+
+    if ((r.tags || []).length) {
+      const tags = document.createElement("div");
+      tags.className = "card-tags";
+      r.tags.forEach(t => {
+        const span = document.createElement("span");
+        span.className = "tag";
+        span.textContent = t;
+        tags.appendChild(span);
+      });
+      card.appendChild(tags);
+    }
+
+    const footer = document.createElement("div");
+    footer.className = "card-footer";
+    const date = document.createElement("span");
+    date.textContent = fmtDate(r.edited_at || r.published_at);
+    const id = document.createElement("span");
+    id.className = "id-col";
+    id.textContent = "#" + r.id;
+    footer.appendChild(date);
+    footer.appendChild(id);
+    card.appendChild(footer);
+
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    const btn = importButton(r);
+    if (btn) actions.appendChild(btn);
+    const dbtn = diffButton(r);
+    if (dbtn) actions.appendChild(dbtn);
+    const rvbtn = reviewedToggle(r);
+    if (rvbtn) actions.appendChild(rvbtn);
+    if (actions.childNodes.length) card.appendChild(actions);
+
+    return card;
+  }
+}
+
+function renderList(rows) {
+  const tbody = document.getElementById("rows");
+  tbody.innerHTML = "";
+
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+
+    const tdTitle = document.createElement("td");
+    const a = document.createElement("a");
+    a.href = r.url || "#";
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = r.title || "(senza titolo)";
+    tdTitle.appendChild(a);
+    tr.appendChild(tdTitle);
+
+    const tdTags = document.createElement("td");
+    (r.tags || []).forEach(t => {
+      const span = document.createElement("span");
+      span.className = "tag";
+      span.textContent = t;
+      tdTags.appendChild(span);
+    });
+    tr.appendChild(tdTags);
+
+    const tdPub = document.createElement("td");
+    tdPub.appendChild(statoPill(r));
+    tr.appendChild(tdPub);
+
+    const tdSync = document.createElement("td");
+    tdSync.appendChild(statusPill(r));
+    tr.appendChild(tdSync);
+
+    const tdDate = document.createElement("td");
+    tdDate.textContent = fmtDate(r.edited_at || r.published_at);
+    tr.appendChild(tdDate);
+
+    const tdId = document.createElement("td");
+    tdId.className = "id-col";
+    tdId.textContent = r.id;
+    tr.appendChild(tdId);
+
+    const tdAction = document.createElement("td");
+    tdAction.className = "row-actions";
+    const btn = importButton(r);
+    if (btn) tdAction.appendChild(btn);
+    const dbtn = diffButton(r);
+    if (dbtn) tdAction.appendChild(dbtn);
+    const rvbtn = reviewedToggle(r);
+    if (rvbtn) tdAction.appendChild(rvbtn);
+    tr.appendChild(tdAction);
+
+    tbody.appendChild(tr);
+  }
+}
+
+document.getElementById("search").addEventListener("input", render);
+document.getElementById("filterStatus").addEventListener("change", render);
+document.getElementById("filterPublished").addEventListener("change", render);
+document.getElementById("refresh").addEventListener("click", load);
+
+function setView(view) {
+  state.view = view;
+  try { localStorage.setItem("devto-view", view); } catch (e) { /* ignora, non critico */ }
+
+  const isCards = view === "cards";
+  const isKanban = view === "kanban";
+  document.getElementById("tableView").style.display = (isCards || isKanban) ? "none" : "table";
+  document.getElementById("cards").style.display = isCards ? "grid" : "none";
+  document.getElementById("kanban").style.display = isKanban ? "grid" : "none";
+  document.getElementById("cardSortBar").style.display = (isCards || isKanban) ? "flex" : "none";
+  document.getElementById("viewList").classList.toggle("active", !isCards && !isKanban);
+  document.getElementById("viewCards").classList.toggle("active", isCards);
+  document.getElementById("viewKanban").classList.toggle("active", isKanban);
+
+  if (isCards || isKanban) document.getElementById("cardSortKey").value = state.sortKey;
+  render();
+}
+
+document.getElementById("viewList").addEventListener("click", () => setView("list"));
+document.getElementById("viewCards").addEventListener("click", () => setView("cards"));
+document.getElementById("viewKanban").addEventListener("click", () => setView("kanban"));
+
+function updateSortIndicators() {
+  document.querySelectorAll("th[data-sort]").forEach(th => {
+    const arrow = th.querySelector(".sort-arrow");
+    arrow.textContent = th.dataset.sort === state.sortKey ? (state.sortDir === 1 ? "▲" : "▼") : "";
+  });
+  document.getElementById("cardSortKey").value = state.sortKey;
+  document.getElementById("cardSortDir").textContent = state.sortDir === 1 ? "▲" : "▼";
+}
+
+document.getElementById("cardSortKey").addEventListener("change", (e) => {
+  state.sortKey = e.target.value;
+  updateSortIndicators();
+  render();
+});
+document.getElementById("cardSortDir").addEventListener("click", (e) => {
+  state.sortDir *= -1;
+  updateSortIndicators();
+  render();
+});
+
+setView(state.view);
+
+document.querySelectorAll("th[data-sort]").forEach(th => {
+  th.addEventListener("click", () => {
+    const key = th.dataset.sort;
+    if (state.sortKey === key) {
+      state.sortDir *= -1;
+    } else {
+      state.sortKey = key;
+      state.sortDir = 1;
+    }
+    updateSortIndicators();
+    render();
+  });
+});
+
+updateSortIndicators();
+load();
+
+// Il nome nel titolo è un di più: se /api/me fallisce o non risponde, resta
+// il titolo senza nome.
+fetch("/api/me").then(r => r.json()).then(p => {
+  if (p && p.username) document.getElementById("pageTitle").textContent = "Articoli dev.to — " + p.username;
+}).catch(() => {});
+</script>
+</body>
+</html>

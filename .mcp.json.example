@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "devto": {
+      "command": "uv",
+      "args": ["--directory", "/percorso/di/devto-mcp", "run", "server.py"],
+      "env": {
+        "DEV_TO_API_KEY": "${DEV_TO_API_KEY}"
+      }
+    }
+  }
+}
