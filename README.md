@@ -89,8 +89,17 @@ Per ogni articolo confronta tre cose: l'hash del body locale, quello del body re
 | remoto più recente | È cambiato solo il portale | scarica l'aggiornamento (pull) |
 | locale più recente | È cambiato solo il file | manda online (push) |
 | conflitto | Sono cambiati entrambi, in modo diverso | nessuna: il merge non è automatico, si risolve con la skill |
+| metadati diversi | Il testo è allineato ma cambiano `published`, titolo, tag, copertina o indirizzi | se l'articolo è stato pubblicato dal portale: «Segna come pubblicato». Per il resto nessuna, si decide con la skill |
 | solo su Dev.to | Esiste sul portale ma non c'è il file | scarica in locale |
 | solo locale | C'è il file ma non l'articolo | nessuna |
+
+### Metadati diversi
+
+Pubblicare un articolo dal portale non cambia il testo, quindi il controllo a hash lo vedrebbe «allineato», mentre cambiano `published` e gli indirizzi, che perdono lo slug provvisorio. Per questo c'è lo stato «metadati diversi»: scatta quando il testo è allineato ma qualcuno tra `title`, `published`, `tags`, `url`, `canonical_url` e `cover_image` differisce dal file.
+
+Non c'è un hash dei metadati all'ultimo sync, quindi di solito non si sa quale lato è cambiato, e la pagina non scrive niente, come per un conflitto. L'unico caso non ambiguo è la pubblicazione dal portale: il file è una bozza, il remoto è pubblicato e cambiano solo `published`, `url` e `canonical_url`. Lì compare «Segna come pubblicato», che aggiorna questi tre campi e toglie `stato`, lasciando il testo identico byte per byte. Se insieme cambiano anche il titolo, i tag o la copertina, oppure un articolo è tornato bozza, il pulsante non c'è e il confronto mostra i campi.
+
+Dopo una pubblicazione dal portale va fatto prima questo passo e poi l'esportazione, perché lo script di esportazione legge il `published` del file.
 
 ### Kanban
 

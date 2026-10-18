@@ -47,13 +47,14 @@ Non c'è merge automatico del testo: la riconciliazione di un conflitto è sempr
 
 ## Interfaccia web
 
-Confronto a tre vie (hash del body locale, hash del body remoto, `devto_synced_hash`) per distinguere `allineato`, `remoto_aggiornato` (pull sicuro), `locale_da_pushare` (push sicuro), `conflitto` (nessuna azione automatica), `solo_remoto` e `solo_locale`.
+Confronto a tre vie (hash del body locale, hash del body remoto, `devto_synced_hash`) per distinguere `allineato`, `remoto_aggiornato` (pull sicuro), `locale_da_pushare` (push sicuro), `conflitto` (nessuna azione automatica), `solo_remoto` e `solo_locale`. Se il testo è allineato ma i metadati (`title`, `published`, `tags`, `url`, `canonical_url`, `cover_image`) differiscono, lo stato è `metadati_diversi`, con `metadati.azione`: `pubblicato_dal_portale` (file bozza, remoto pubblicato, cambiano solo `published`, `url` e `canonical_url`) oppure `ambiguo` (nessuna scrittura, non si sa quale lato è cambiato).
 
 Endpoint di scrittura, ciascuno con un pulsante che compare solo quando lo stato lo consente:
 
 - `POST /api/import/<id>`: crea il file per un articolo solo su Dev.to, mai una sovrascrittura.
 - `POST /api/pull/<id>`: sovrascrive il locale con il remoto; rifiuta se lo stato non è `remoto_aggiornato`.
 - `POST /api/push/<id>`: aggiorna Dev.to con il locale; rifiuta se lo stato non è `locale_da_pushare`.
+- `POST /api/metadata/<id>`: aggiorna `published`, `url` e `canonical_url` del file e toglie `stato`, solo per la pubblicazione dal portale con testo allineato (hash locale, remoto e di sync uguali); rifiuta ogni altro caso, in particolare le differenze di titolo, tag o copertina.
 - `POST /api/stato/<id>` con body `{"stato": "bozza|revisionata|pronta"}`: scrittura solo locale. Rifiuta «pubblicato» e gli articoli già pubblicati.
 - `POST /api/toggle-reviewed/<id>`: inverte `reviewed`, solo locale.
 

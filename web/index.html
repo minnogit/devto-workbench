@@ -257,6 +257,7 @@
       <option value="remoto_aggiornato">Remoto più recente (pull sicuro)</option>
       <option value="locale_da_pushare">Locale più recente (push sicuro)</option>
       <option value="conflitto">Conflitto</option>
+      <option value="metadati_diversi">Metadati diversi (es. pubblicato dal portale)</option>
       <option value="solo_remoto">Solo su dev.to</option>
       <option value="solo_locale">Solo locale</option>
     </select>
@@ -341,6 +342,7 @@ const STATUS_LABEL = {
   locale_da_pushare:  { label: "Locale più recente",     cls: "pill-warn" },
   conflitto:          { label: "Conflitto",              cls: "pill-danger" },
   solo_remoto:        { label: "Solo su dev.to",         cls: "pill-info" },
+  metadati_diversi:   { label: "Metadati diversi",       cls: "pill-warn" },
   solo_locale:        { label: "Solo locale",            cls: "pill-danger" },
 };
 
@@ -444,6 +446,21 @@ function importButton(r) {
     span.textContent = "risolvi con devto-articles";
     return span;
   }
+  if (r.status === "metadati_diversi") {
+    // Non c'è un hash dei metadati: si scrive solo quando l'unica novità è che l'articolo
+    // è uscito dal portale. Per il resto non si può sapere quale lato è cambiato.
+    if (r.metadati && r.metadati.azione === "pubblicato_dal_portale") {
+      const b = document.createElement("button");
+      b.textContent = "✔ Segna come pubblicato";
+      b.title = "L'articolo è stato pubblicato dal portale: aggiorna nel file published e gli indirizzi (il testo resta identico). Si toglie anche lo stato di bozza.";
+      b.addEventListener("click", () => runAction("metadata", r.id, b));
+      return b;
+    }
+    const span = document.createElement("span");
+    span.className = "muted";
+    span.textContent = "metadati ambigui: decidi con devto-articles";
+    return span;
+  }
   const action = ACTION_BY_STATUS[r.status];
   if (!action) return null;
   const btn = document.createElement("button");
@@ -456,7 +473,7 @@ function importButton(r) {
 // Stati in cui esistono davvero due versioni (locale + remoto) da
 // confrontare — solo_remoto e solo_locale non ce l'hanno, allineato non
 // serve.
-const DIFFABLE_STATUSES = new Set(["remoto_aggiornato", "locale_da_pushare", "conflitto"]);
+const DIFFABLE_STATUSES = new Set(["remoto_aggiornato", "locale_da_pushare", "conflitto", "metadati_diversi"]);
 
 function diffButton(r) {
   if (!DIFFABLE_STATUSES.has(r.status)) return null;
@@ -562,7 +579,17 @@ async function showDiff(id, title) {
     const payload = await res.json();
     if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
     if (!payload.diff) {
-      body.innerHTML = '<div class="diff-line">Nessuna differenza di testo (solo metadati sono cambiati).</div>';
+      body.innerHTML = "";
+      const head = document.createElement("div");
+      head.className = "diff-line";
+      head.textContent = "Nessuna differenza di testo: sono cambiati solo i metadati.";
+      body.appendChild(head);
+      for (const [campo, v] of Object.entries(payload.metadati || {})) {
+        const row = document.createElement("div");
+        row.className = "diff-line";
+        row.textContent = `${campo}: ${JSON.stringify(v.locale)} (locale) → ${JSON.stringify(v.remoto)} (dev.to)`;
+        body.appendChild(row);
+      }
       diffState.payload = null;
       return;
     }
@@ -635,6 +662,7 @@ function statusPill(r) {
   const span = document.createElement("span");
   span.className = "pill " + s.cls;
   span.textContent = s.label;
+  if (r.metadati && r.metadati.differenze) span.title = "Cambiano: " + Object.keys(r.metadati.differenze).join(", ");
   return span;
 }
 

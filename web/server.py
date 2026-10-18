@@ -447,6 +447,98 @@ def classify_status(local_hash: str | None, remote_hash: str | None, synced_hash
     return "conflitto"  # entrambi cambiati, in modo diverso
 
 
+# Campi del front-matter che rispecchiano lo stato dell'articolo su Dev.to. Possono
+# differire dal locale senza che il testo sia cambiato: il caso tipico è la
+# pubblicazione dal portale, che cambia `published` e sostituisce lo slug
+# provvisorio negli indirizzi.
+METADATA_FIELDS = ("title", "published", "tags", "url", "canonical_url", "cover_image")
+PUBLICATION_FIELDS = {"published", "url", "canonical_url"}
+
+
+def metadata_diff(loc: dict, article: dict) -> dict:
+    """{campo: {"locale": ..., "remoto": ...}} per i metadati che differiscono."""
+    remote = {
+        "title": article.get("title"),
+        "published": bool(article.get("published")),
+        "tags": article.get("tag_list") or [],
+        "url": article.get("url"),
+        "canonical_url": article.get("canonical_url"),
+        "cover_image": article.get("cover_image"),
+    }
+    local = {
+        "title": loc.get("title"),
+        "published": bool(loc.get("published")),
+        "tags": loc.get("tags") or [],
+        "url": loc.get("url"),
+        "canonical_url": loc.get("canonical_url"),
+        "cover_image": loc.get("cover_image"),
+    }
+    return {k: {"locale": local[k], "remoto": remote[k]} for k in METADATA_FIELDS if local[k] != remote[k]}
+
+
+def metadata_action(diff: dict) -> str | None:
+    """Cosa si può fare con una differenza di metadati. Non c'è un hash dei
+    metadati all'ultimo sync, quindi di solito non si sa quale lato è cambiato
+    e la differenza è «ambigua»: nessuna scrittura automatica, come per un
+    conflitto. L'unico caso non ambiguo è la pubblicazione dal portale: locale
+    bozza, remoto pubblicato, e cambiano solo published e gli indirizzi."""
+    if not diff:
+        return None
+    pub = diff.get("published")
+    if set(diff) <= PUBLICATION_FIELDS and pub and pub["locale"] is False and pub["remoto"] is True:
+        return "pubblicato_dal_portale"
+    return "ambiguo"
+
+
+def sync_metadata(article_id: int) -> dict:
+    """Allinea il front-matter locale a Dev.to quando l'articolo è stato
+    pubblicato dal portale e il testo non è cambiato. Rifiuta tutto il resto:
+    testo diverso (si usano pull, push o la skill) e differenze di metadati
+    ambigue (titolo, tag, copertina, o un articolo tornato bozza)."""
+    loc = load_local_articles().get(article_id)
+    if loc is None:
+        raise ValueError(f"Nessun file locale per l'articolo {article_id}.")
+    article = find_remote_article(article_id)
+    if article is None:
+        raise ValueError(f"Articolo {article_id} non trovato su Dev.to (o non è tuo).")
+
+    body = article.get("body_markdown") or ""
+    remote_hash = hashlib.sha256(body.encode()).hexdigest()
+    local_hash = hashlib.sha256(loc["body"].encode()).hexdigest()
+    synced_hash = loc.get("devto_synced_hash")
+    if not (local_hash == remote_hash == synced_hash):
+        raise ValueError(
+            "Il testo non è allineato (locale, remoto e ultimo sync non coincidono): "
+            "questo pulsante aggiorna solo i metadati. Usa pull, push o la skill "
+            "devto-articles per il testo."
+        )
+
+    diff = metadata_diff(loc, article)
+    if not diff:
+        raise ValueError("I metadati sono già allineati: niente da aggiornare.")
+    if metadata_action(diff) != "pubblicato_dal_portale":
+        raise ValueError(
+            "Le differenze (" + ", ".join(sorted(diff)) + ") non sono solo una pubblicazione "
+            "dal portale: da qui non si può sapere quale lato è cambiato. Decidi con la "
+            "skill devto-articles."
+        )
+
+    front_matter = {
+        "id": article_id,
+        "title": loc.get("title"),
+        "published": True,
+        "tags": loc.get("tags", []),
+        "url": article["url"],
+        "canonical_url": article.get("canonical_url"),
+        "cover_image": loc.get("cover_image"),
+        "devto_synced_hash": remote_hash,
+        # stato non si scrive più: per un articolo pubblicato vale «pubblicato»
+        **local_only_fields(loc, True),
+    }
+    write_local_article(loc["path"], front_matter, loc["body"])
+    return {"file": loc["file"], "campi": sorted(diff)}
+
+
 def build_side_by_side(local_lines: list[str], remote_lines: list[str]) -> list[dict]:
     """Righe allineate per la vista fianco a fianco: ogni riga è
     {type, left, right}, con left/right a None dove un lato non ha
@@ -498,6 +590,10 @@ def diff_article(article_id: int) -> dict:
     status = classify_status(local_hash, remote_hash, synced_hash)
 
     if status == "allineato":
+        diff = metadata_diff(loc, article)
+        if diff:
+            return {"status": "metadati_diversi", "diff": "", "rows": [],
+                    "metadati": diff, "azione": metadata_action(diff)}
         raise ValueError("Locale e remoto sono identici: niente da confrontare.")
 
     local_lines = local_body.splitlines()
@@ -587,6 +683,7 @@ def build_report() -> list:
 
     for article in remote:
         article_id = article["id"]
+        metadati = None
         remote_ids.add(article_id)
         body = article.get("body_markdown") or ""
         remote_hash = hashlib.sha256(body.encode()).hexdigest()
@@ -598,6 +695,11 @@ def build_report() -> list:
             synced_hash = loc.get("devto_synced_hash")
             local_hash = hashlib.sha256(loc["body"].encode()).hexdigest()
             status = classify_status(local_hash, remote_hash, synced_hash)
+            if status == "allineato":
+                mdiff = metadata_diff(loc, article)
+                if mdiff:
+                    status = "metadati_diversi"
+                    metadati = {"differenze": mdiff, "azione": metadata_action(mdiff)}
 
         rows.append({
             "id": article_id,
@@ -608,6 +710,7 @@ def build_report() -> list:
             "edited_at": article.get("edited_at"),
             "published_at": article.get("published_at"),
             "status": status,
+            "metadati": metadati,
             "local_file": loc["file"] if loc else None,
             "stato": effective_stato(article["published"], loc.get("stato") if loc else None),
             "reviewed": loc.get("reviewed", False) if loc else None,
@@ -624,6 +727,7 @@ def build_report() -> list:
                 "edited_at": None,
                 "published_at": None,
                 "status": "solo_locale",
+                "metadati": None,
                 "local_file": loc.get("file"),
                 "stato": effective_stato(loc.get("published"), loc.get("stato")),
                 "reviewed": loc.get("reviewed", False),
@@ -717,7 +821,7 @@ class Handler(BaseHTTPRequestHandler):
         return data if isinstance(data, dict) else {}
 
     def do_POST(self):
-        m = re.match(r"^/api/(import|pull|push|stato|toggle-reviewed)/(\d+)$", self.path)
+        m = re.match(r"^/api/(import|pull|push|metadata|stato|toggle-reviewed)/(\d+)$", self.path)
         if not m:
             self.send_error(404)
             return
@@ -726,6 +830,7 @@ class Handler(BaseHTTPRequestHandler):
             "import": import_article_locally,
             "pull": pull_article,
             "push": push_article,
+            "metadata": sync_metadata,
             "stato": lambda i: set_stato(i, self._read_json_body().get("stato")),
             "toggle-reviewed": toggle_reviewed,
         }[action]
