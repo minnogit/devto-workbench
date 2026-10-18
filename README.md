@@ -129,7 +129,8 @@ Si fida del `published` nel front-matter locale: conviene lanciarlo dopo un sync
 ## Sicurezza
 
 - La chiave API vive solo nell'ambiente. Il server la aggiunge lui alle richieste verso Dev.to, il browser non la vede mai.
-- I punti di scrittura del server (`/api/pull`, `/api/push`, `/api/stato` e gli altri) non hanno autenticazione: chiunque possa connettersi a `127.0.0.1` sulla tua macchina può chiamarli. Non esporre la porta.
+- Il server ascolta solo su `127.0.0.1` e non ha un login: chiunque possa connettersi a quella porta sulla tua macchina può usarlo. Non esporre la porta.
+- Un sito qualsiasi aperto nel browser può mandare una `POST` a `localhost`, e un server senza controlli la esegue anche se il browser non fa leggere la risposta. Succedeva in una versione precedente: l'ho provato con una pagina di un'altra origine, che riusciva a cambiare un file. Ora il server accetta solo `Host` uguale a `localhost`, `127.0.0.1` o `[::1]` con la sua porta, rifiuta le `POST` con un `Origin` diverso dalla pagina stessa e richiede su ogni `POST` l'intestazione `X-Workbench: 1`, che una pagina di un altro sito non può inviare senza una richiesta preliminare che il server non accetta. Con `curl` va aggiunta a mano: `curl -X POST -H 'X-Workbench: 1' http://localhost:8787/api/...`.
 - Tieni privato il repo dei contenuti: le bozze possono contenere appunti non destinati alla pubblicazione.
 
 ## Licenza

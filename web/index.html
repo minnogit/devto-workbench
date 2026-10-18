@@ -325,6 +325,9 @@
 </div>
 
 <script>
+// Intestazione richiesta dal server su ogni POST: una pagina di un altro sito non può mandarla.
+const WB_HEADERS = { "X-Workbench": "1" };
+
 const state = {
   data: [],
   // Ordinamento di default: ID decrescente. Gli id Dev.to sono assegnati in
@@ -367,7 +370,7 @@ async function runAction(endpoint, id, btn) {
   btn.disabled = true;
   btn.textContent = "…";
   try {
-    const res = await fetch(`/api/${endpoint}/${id}`, { method: "POST" });
+    const res = await fetch(`/api/${endpoint}/${id}`, { method: "POST", headers: WB_HEADERS });
     const payload = await res.json();
     if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
     await load();
@@ -396,7 +399,7 @@ async function moveToStato(r, newStato) {
   try {
     const res = await fetch(`/api/stato/${r.id}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...WB_HEADERS },
       body: JSON.stringify({ stato: newStato }),
     });
     const payload = await res.json();
@@ -424,7 +427,7 @@ function reviewedToggle(r) {
     e.stopPropagation();
     btn.disabled = true;
     try {
-      const res = await fetch(`/api/toggle-reviewed/${r.id}`, { method: "POST" });
+      const res = await fetch(`/api/toggle-reviewed/${r.id}`, { method: "POST", headers: WB_HEADERS });
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.error || ("HTTP " + res.status));
       r.reviewed = payload.reviewed;

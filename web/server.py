@@ -48,6 +48,11 @@ def inside_tool_repo(path: pathlib.Path) -> bool:
 
 IMG_URL_RE = re.compile(r"!\[[^\]]*\]\((https?://[^\s)]+)\)")
 
+# Intestazione che la pagina manda su ogni POST. Una pagina di un altro sito non
+# può aggiungerla senza una richiesta preliminare (OPTIONS) che il server non
+# accetta, quindi blocca anche il caso in cui Origin manchi.
+WRITE_HEADER = "X-Workbench"
+
 API_KEY = os.environ.get("DEV_TO_API_KEY")
 API_BASE = "https://dev.to/api"
 PORT = int(os.environ.get("PORT", "8787"))
@@ -753,7 +758,38 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # --- difesa contro richieste che non vengono dalla pagina ---
+    # Il server è su 127.0.0.1 ma senza autenticazione: un sito qualsiasi aperto nel
+    # browser può mandare una POST «semplice» a localhost, e il server la esegue anche
+    # se il browser non fa leggere la risposta (provato). Tre controlli:
+    # Host consentito (contro il DNS rebinding), Origin della pagina stessa sui POST,
+    # intestazione propria sui POST.
+    def _allowed_hosts(self) -> set:
+        port = self.server.server_address[1]
+        hosts = {f"localhost:{port}", f"127.0.0.1:{port}", f"[::1]:{port}"}
+        if port == 80:
+            hosts |= {"localhost", "127.0.0.1", "[::1]"}
+        return hosts
+
+    def _check_host(self) -> bool:
+        if self.headers.get("Host", "").lower() in self._allowed_hosts():
+            return True
+        self._send_json({"error": "Host non consentito: apri la pagina da http://localhost:<porta>."}, status=403)
+        return False
+
+    def _check_write_request(self) -> bool:
+        origin = self.headers.get("Origin")  # assente da curl e script, sempre presente da un browser
+        if origin is not None and origin.lower() not in {f"http://{h}" for h in self._allowed_hosts()}:
+            self._send_json({"error": "Origin non consentita: la richiesta non viene dalla pagina."}, status=403)
+            return False
+        if self.headers.get(WRITE_HEADER) != "1":
+            self._send_json({"error": f"Manca l'intestazione {WRITE_HEADER}: 1 (la manda la pagina)."}, status=403)
+            return False
+        return True
+
     def do_GET(self):
+        if not self._check_host():
+            return
         if self.path == "/api/me":
             self._send_json({"username": get_username()})
             return
@@ -821,6 +857,8 @@ class Handler(BaseHTTPRequestHandler):
         return data if isinstance(data, dict) else {}
 
     def do_POST(self):
+        if not self._check_host() or not self._check_write_request():
+            return
         m = re.match(r"^/api/(import|pull|push|metadata|stato|toggle-reviewed)/(\d+)$", self.path)
         if not m:
             self.send_error(404)
