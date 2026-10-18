@@ -7,7 +7,7 @@ Strumenti per tenere gli articoli Dev.to come file Markdown in un repo Git (il r
 - `web/server.py`: server locale, solo standard library Python. Serve `web/index.html`, fa da proxy verso l'API di Dev.to aggiungendo l'header `api-key` (letto da `DEV_TO_API_KEY`, il browser da solo non può mandarlo cross-origin) e legge i file degli articoli.
 - `web/index.html`: la pagina, in un solo file, senza dipendenze.
 - `scripts/import_articles.py`: importazione bulk iniziale, richiede `httpx`.
-- `scripts/export_published.py`: copia i soli articoli con `published: true` in una cartella di un altro repo (body identico, front-matter ridotto a `id`, `title`, `url`, `tags`), per alimentare una wiki senza esporre le bozze. Riusa parser e formato di `web/server.py` (`split_front_matter`, `render_article`). Solo standard library.
+- `scripts/export_published.py`: copia i soli articoli con `published: true` in una cartella di un altro repo (body identico, front-matter ridotto a `id`, `title`, `url`, `tags`), per alimentare una wiki senza esporre le bozze. La logica sta in `web/server.py` (`export_published`), condivisa con la pagina: lo script è un involucro sottile da riga di comando. Solo standard library.
 - `tests/`: test in `unittest`, solo standard library: `python3 -m unittest discover tests`.
 - `.claude/skills/devto-articles/SKILL.md`: la procedura operativa per l'agente (creazione, pull, push, conflitti, pubblicazione).
 
@@ -55,10 +55,11 @@ Endpoint di scrittura, ciascuno con un pulsante che compare solo quando lo stato
 - `POST /api/pull/<id>`: sovrascrive il locale con il remoto; rifiuta se lo stato non è `remoto_aggiornato`.
 - `POST /api/push/<id>`: aggiorna Dev.to con il locale; rifiuta se lo stato non è `locale_da_pushare`.
 - `POST /api/metadata/<id>`: aggiorna `published`, `url` e `canonical_url` del file e toglie `stato`, solo per la pubblicazione dal portale con testo allineato (hash locale, remoto e di sync uguali); rifiuta ogni altro caso, in particolare le differenze di titolo, tag o copertina.
+- `POST /api/export` con body `{"prune": true|false}`: scrive gli articoli pubblicati in `EXPORT_DEST` (variabile d'ambiente fissata all'avvio, mai presa dalla richiesta; senza, risponde 409). `prune` deve essere un booleano. Risponde con i file aggiunti, aggiornati e rimossi e, se la destinazione è in un repo git, con il comando di commit da copiare: il commit non lo fa il server.
 - `POST /api/stato/<id>` con body `{"stato": "bozza|revisionata|pronta"}`: scrittura solo locale. Rifiuta «pubblicato» e gli articoli già pubblicati.
 - `POST /api/toggle-reviewed/<id>`: inverte `reviewed`, solo locale.
 
-In lettura: `GET /api/articles` (l'elenco con gli stati), `GET /api/diff/<id>` (confronto riga per riga) e `GET /api/me` (username per il titolo).
+In lettura: `GET /api/export` (anteprima senza scrivere: `{enabled: false}` senza `EXPORT_DEST`, altrimenti risultato e articoli pubblicati su Dev.to ma bozze nel file), `GET /api/articles` (l'elenco con gli stati), `GET /api/diff/<id>` (confronto riga per riga) e `GET /api/me` (username per il titolo).
 
 Il server legge `articles/` dalla cartella da cui è lanciato, o da `ARTICLES_DIR`. Le immagini vanno in `ASSETS_DIR`, di default `assets/` accanto alla cartella degli articoli. Se la cartella degli articoli è dentro questo repo, l'import rifiuta di scrivere: i contenuti non vivono qui. Dopo ogni modifica a `web/` va riavviato.
 

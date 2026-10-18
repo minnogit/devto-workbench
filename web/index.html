@@ -267,6 +267,7 @@
       <option value="false">Solo bozze</option>
     </select>
     <button id="refresh">↻ Aggiorna</button>
+    <button id="exportBtn" style="display:none" title="Copia gli articoli pubblicati nella cartella configurata con EXPORT_DEST">⬆ Esporta pubblicati</button>
     <div class="view-toggle">
       <button id="viewList" title="Vista elenco">☰ Elenco</button>
       <button id="viewCards" title="Vista card">▦ Card</button>
@@ -307,6 +308,16 @@
 
   <div class="empty" id="empty" style="display:none">Nessun articolo trovato.</div>
 </main>
+
+<div class="modal-backdrop" id="exportBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Esporta gli articoli pubblicati</h2>
+      <button id="exportClose">✕</button>
+    </div>
+    <div class="modal-body" id="exportBody"></div>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="diffBackdrop">
   <div class="modal">
@@ -944,6 +955,98 @@ document.querySelectorAll("th[data-sort]").forEach(th => {
 });
 
 updateSortIndicators();
+// ---- Esportazione degli articoli pubblicati (visibile solo con EXPORT_DEST) ----
+function exportLine(container, text, cls) {
+  const d = document.createElement("div");
+  d.className = "diff-line" + (cls ? " " + cls : "");
+  d.textContent = text;
+  container.appendChild(d);
+  return d;
+}
+
+function exportList(container, titolo, nomi, cls) {
+  if (!nomi.length) return;
+  exportLine(container, titolo + ":", "diff-hunk");
+  nomi.forEach(n => exportLine(container, "  " + n, cls));
+}
+
+async function openExport() {
+  const backdrop = document.getElementById("exportBackdrop");
+  const body = document.getElementById("exportBody");
+  body.innerHTML = "";
+  exportLine(body, "Caricamento…");
+  backdrop.classList.add("open");
+  try {
+    const res = await fetch("/api/export");
+    const p = await res.json();
+    if (!res.ok) throw new Error(p.error || ("HTTP " + res.status));
+    body.innerHTML = "";
+    const r = p.risultato;
+    exportLine(body, "Destinazione: " + p.dest, "diff-hunk");
+    if (p.pendenti === null) {
+      exportLine(body, "Non ho potuto controllare se ci sono articoli pubblicati su Dev.to ma ancora bozze nel file (nessuna rete?).", "diff-hunk");
+    } else if (p.pendenti.length) {
+      exportLine(body, "Pubblicati su Dev.to ma ancora bozze nel file, quindi NON verranno esportati:", "diff-del");
+      p.pendenti.forEach(a => exportLine(body, "  #" + a.id + " " + a.title, "diff-del"));
+      exportLine(body, "Premi prima «Segna come pubblicato» su ciascuno (filtro «Metadati diversi»), poi riapri questa finestra.", "diff-del");
+    }
+    exportLine(body, `Da aggiungere: ${r.added.length}, da aggiornare: ${r.updated.length}, invariati: ${r.unchanged.length}, bozze escluse: ${r.skipped_drafts}`);
+    exportList(body, "Da aggiungere", r.added, "diff-add");
+    exportList(body, "Da aggiornare", r.updated, "diff-add");
+    exportList(body, "Esportati in passato e non più pubblicati (restano finché non li rimuovi)", r.orphans, "diff-del");
+
+    const bar = document.createElement("div");
+    bar.className = "diff-line";
+    bar.style.display = "flex"; bar.style.gap = "10px"; bar.style.alignItems = "center"; bar.style.padding = "10px 16px";
+    let prune = null;
+    if (r.orphans.length) {
+      const label = document.createElement("label");
+      prune = document.createElement("input"); prune.type = "checkbox";
+      label.appendChild(prune);
+      label.appendChild(document.createTextNode(" rimuovi anche questi file dalla destinazione"));
+      bar.appendChild(label);
+    }
+    const go = document.createElement("button");
+    go.textContent = "Esporta";
+    go.disabled = !r.added.length && !r.updated.length && !r.orphans.length;
+    bar.appendChild(go);
+    body.appendChild(bar);
+    go.addEventListener("click", async () => {
+      go.disabled = true; go.textContent = "…";
+      try {
+        const res2 = await fetch("/api/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...WB_HEADERS },
+          body: JSON.stringify({ prune: !!(prune && prune.checked) }),
+        });
+        const out = await res2.json();
+        if (!res2.ok) throw new Error(out.error || ("HTTP " + res2.status));
+        body.innerHTML = "";
+        exportLine(body, `Fatto: aggiunti ${out.added.length}, aggiornati ${out.updated.length}, rimossi ${out.removed.length}.`, "diff-add");
+        if (out.comando_commit) {
+          exportLine(body, "Ora committa nel repo di destinazione (non lo faccio io):", "diff-hunk");
+          const pre = exportLine(body, out.comando_commit);
+          pre.style.userSelect = "all";
+        } else {
+          exportLine(body, "Niente da committare, oppure la destinazione non è in un repo git.", "diff-hunk");
+        }
+      } catch (e) {
+        exportLine(body, "Errore: " + e.message, "diff-del");
+      }
+    });
+  } catch (e) {
+    body.innerHTML = "";
+    exportLine(body, "Errore: " + e.message, "diff-del");
+  }
+}
+
+document.getElementById("exportBtn").addEventListener("click", openExport);
+document.getElementById("exportClose").addEventListener("click", () => document.getElementById("exportBackdrop").classList.remove("open"));
+document.getElementById("exportBackdrop").addEventListener("click", (e) => { if (e.target === e.currentTarget) e.currentTarget.classList.remove("open"); });
+fetch("/api/export").then(r => r.json()).then(p => {
+  if (p && p.enabled) document.getElementById("exportBtn").style.display = "";
+}).catch(() => {});
+
 load();
 
 // Il nome nel titolo è un di più: se /api/me fallisce o non risponde, resta

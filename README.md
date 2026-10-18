@@ -68,6 +68,7 @@ poi apri http://localhost:8787. Il server ascolta solo su `127.0.0.1`.
 | `ASSETS_DIR` | Dove salvare le immagini. Di default `assets/` accanto a `ARTICLES_DIR`. |
 | `PORT` | Porta del server, di default 8787. |
 | `DEVTO_USERNAME` | Nome mostrato nel titolo. Se manca lo chiede a Dev.to. |
+| `EXPORT_DEST` | Cartella in cui esportare gli articoli pubblicati (vedi sotto). Se manca, il pulsante di esportazione non compare. |
 
 Se lo lanci dalla cartella dello strumento (per esempio mentre lo sviluppi) non trova articoli, e lo scrive all'avvio. Imposta `ARTICLES_DIR`:
 
@@ -121,6 +122,18 @@ Legge `articles/` dalla cartella da cui lo lanci (o da `ARTICLES_DIR`, o da `--a
 - Rifiuta una destinazione che coincide con la cartella degli articoli o la contiene.
 
 Si fida del `published` nel front-matter locale: conviene lanciarlo dopo un sync, perché un articolo tornato bozza sul portale risulterebbe ancora esportato. La destinazione va in un repo diverso da quello degli articoli, e lì si committa il risultato.
+
+### Dalla pagina
+
+Con `EXPORT_DEST` impostata all'avvio, nella barra compare «⬆ Esporta pubblicati»:
+
+```bash
+EXPORT_DEST=/percorso/altro-repo/raw/devto python3 /percorso/di/devto-workbench/web/server.py
+```
+
+Il pulsante apre un'anteprima, come `--dry-run`: cosa si aggiunge, cosa si aggiorna, quali file esportati in passato non sono più pubblicati e le bozze escluse. Poi «Esporta» scrive, e con la casella «rimuovi anche questi file» agisce come `--prune`. L'anteprima avvisa in rosso se ci sono articoli pubblicati su Dev.to che nel file sono ancora bozze, per esempio dopo una pubblicazione dal portale: lo script si fida del file e non li esporterebbe, quindi prima si preme «Segna come pubblicato».
+
+La destinazione è fissata all'avvio e non arriva mai dalla richiesta: il corpo di `POST /api/export` può contenere solo `prune`. Il commit nel repo di destinazione lo lascia a te: a esportazione finita la pagina mostra il comando da copiare.
 
 ## Skill per Claude Code
 

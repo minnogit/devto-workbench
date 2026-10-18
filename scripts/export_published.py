@@ -29,72 +29,10 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "web"))
 import server  # noqa: E402  (solo per riusare parser e formato dei file articolo)
 
-# Campi del front-matter che passano all'esportazione: quelli che descrivono
-# l'articolo e non cambiano finché il testo resta lo stesso.
-EXPORT_FIELDS = ("id", "title", "url", "tags")
-
-
-def overlaps(a: pathlib.Path, b: pathlib.Path) -> bool:
-    return a == b or a in b.parents or b in a.parents
-
-
-def export_published(articles_dir: pathlib.Path, dest: pathlib.Path, prune: bool = False,
-                     dry_run: bool = False) -> dict:
-    """Ritorna {added, updated, unchanged, orphans, removed, skipped_drafts}:
-    liste di nomi file (skipped_drafts è un conteggio)."""
-    articles_dir = articles_dir.resolve()
-    dest = dest.resolve()
-    if not articles_dir.is_dir():
-        raise ValueError(f"Cartella degli articoli non trovata: {articles_dir}")
-    if overlaps(articles_dir, dest):
-        raise ValueError(
-            f"La destinazione ({dest}) e la cartella degli articoli ({articles_dir}) "
-            "non possono coincidere né contenersi: la destinazione va in un altro repo."
-        )
-
-    result = {"added": [], "updated": [], "unchanged": [], "orphans": [], "removed": [],
-              "skipped_drafts": 0}
-    wanted = {}
-    for path in sorted(articles_dir.glob("*.md")):
-        fm, body = server.split_front_matter(path.read_text(encoding="utf-8"))
-        if fm.get("id") is None:
-            continue
-        # Solo `true` vero: una stringa o un campo mancante non bastano a esporre un articolo.
-        if fm.get("published") is not True:
-            result["skipped_drafts"] += 1
-            continue
-        exported = {k: fm[k] for k in EXPORT_FIELDS if k in fm}
-        wanted[path.name] = server.render_article(exported, body)
-
-    if not dry_run:
-        dest.mkdir(parents=True, exist_ok=True)
-    for name, text in wanted.items():
-        target = dest / name
-        if not target.exists():
-            kind = "added"
-        elif target.read_text(encoding="utf-8") == text:
-            kind = "unchanged"
-        else:
-            kind = "updated"
-        result[kind].append(name)
-        if kind != "unchanged" and not dry_run:
-            target.write_text(text, encoding="utf-8")
-
-    # File della destinazione che sembrano articoli esportati (hanno un `id`) ma non sono
-    # più tra i pubblicati: bozze tornate tali, articoli cancellati, nomi cambiati.
-    if dest.is_dir():
-        for path in sorted(dest.glob("*.md")):
-            if path.name in wanted:
-                continue
-            fm, _ = server.split_front_matter(path.read_text(encoding="utf-8"))
-            if fm.get("id") is None:
-                continue
-            result["orphans"].append(path.name)
-            if prune:
-                result["removed"].append(path.name)
-                if not dry_run:
-                    path.unlink()
-    return result
+# La logica sta in web/server.py, condivisa con il pulsante della pagina.
+EXPORT_FIELDS = server.EXPORT_FIELDS
+overlaps = server.overlaps
+export_published = server.export_published
 
 
 def main() -> int:

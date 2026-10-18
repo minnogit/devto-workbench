@@ -23,6 +23,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import sys
 import unicodedata
 import urllib.error
@@ -39,6 +40,12 @@ ARTICLES_DIR = pathlib.Path(os.environ.get("ARTICLES_DIR", "articles")).resolve(
 # degli articoli. Con la sola ARTICLES_DIR impostata non si crea così una
 # `assets/` nella cartella sbagliata (quella da cui si lancia il server).
 ASSETS_DIR = pathlib.Path(os.environ.get("ASSETS_DIR") or ARTICLES_DIR.parent / "assets").resolve()
+# Destinazione dell'esportazione degli articoli pubblicati (di solito la cartella
+# raw/ di una wiki, in un altro repo). Si fissa qui, all'avvio: non arriva mai da una
+# richiesta, altrimenti chi riesce a far parlare il server deciderebbe dove scrive.
+# Senza, l'esportazione dalla pagina è spenta.
+_export_dest = os.environ.get("EXPORT_DEST")
+EXPORT_DEST = pathlib.Path(os.path.expanduser(_export_dest)).resolve() if _export_dest else None
 # Radice di questo repo (lo strumento): qui non devono finire articoli.
 TOOL_ROOT = WEB_DIR.parent
 
@@ -680,6 +687,120 @@ def toggle_reviewed(article_id: int) -> dict:
     return {"reviewed": new_value}
 
 
+# Campi del front-matter che passano all'esportazione: quelli che descrivono
+# l'articolo e non cambiano finché il testo resta lo stesso.
+EXPORT_FIELDS = ("id", "title", "url", "tags")
+
+
+def overlaps(a: pathlib.Path, b: pathlib.Path) -> bool:
+    return a == b or a in b.parents or b in a.parents
+
+
+def export_published(articles_dir: pathlib.Path, dest: pathlib.Path, prune: bool = False,
+                     dry_run: bool = False) -> dict:
+    """Copia in `dest` i soli articoli con `published: true`, con il body identico
+    byte per byte e il front-matter ridotto ai campi stabili (EXPORT_FIELDS). Ritorna
+    {added, updated, unchanged, orphans, removed: liste di nomi file, skipped_drafts:
+    conteggio}. Non legge Dev.to e non scrive mai nella cartella degli articoli."""
+    articles_dir = articles_dir.resolve()
+    dest = dest.resolve()
+    if not articles_dir.is_dir():
+        raise ValueError(f"Cartella degli articoli non trovata: {articles_dir}")
+    if overlaps(articles_dir, dest):
+        raise ValueError(
+            f"La destinazione ({dest}) e la cartella degli articoli ({articles_dir}) "
+            "non possono coincidere né contenersi: la destinazione va in un altro repo."
+        )
+
+    result = {"added": [], "updated": [], "unchanged": [], "orphans": [], "removed": [],
+              "skipped_drafts": 0}
+    wanted = {}
+    for path in sorted(articles_dir.glob("*.md")):
+        fm, body = split_front_matter(path.read_text(encoding="utf-8"))
+        if fm.get("id") is None:
+            continue
+        # Solo `true` vero: una stringa o un campo mancante non bastano a esporre un articolo.
+        if fm.get("published") is not True:
+            result["skipped_drafts"] += 1
+            continue
+        exported = {k: fm[k] for k in EXPORT_FIELDS if k in fm}
+        wanted[path.name] = render_article(exported, body)
+
+    if not dry_run:
+        dest.mkdir(parents=True, exist_ok=True)
+    for name, text in wanted.items():
+        target = dest / name
+        if not target.exists():
+            kind = "added"
+        elif target.read_text(encoding="utf-8") == text:
+            kind = "unchanged"
+        else:
+            kind = "updated"
+        result[kind].append(name)
+        if kind != "unchanged" and not dry_run:
+            target.write_text(text, encoding="utf-8")
+
+    # File della destinazione che sembrano articoli esportati (hanno un `id`) ma non sono
+    # più tra i pubblicati: bozze tornate tali, articoli cancellati, nomi cambiati.
+    if dest.is_dir():
+        for path in sorted(dest.glob("*.md")):
+            if path.name in wanted:
+                continue
+            fm, _ = split_front_matter(path.read_text(encoding="utf-8"))
+            if fm.get("id") is None:
+                continue
+            result["orphans"].append(path.name)
+            if prune:
+                result["removed"].append(path.name)
+                if not dry_run:
+                    path.unlink()
+    return result
+
+
+def _git_root(path: pathlib.Path) -> pathlib.Path | None:
+    start = path if path.is_dir() else path.parent
+    try:
+        out = subprocess.run(["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return pathlib.Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else None
+
+
+def export_preview() -> dict:
+    """Cosa farebbe l'esportazione, senza scrivere. Segnala anche gli articoli
+    pubblicati su Dev.to che nel file risultano ancora bozze (per esempio dopo una
+    pubblicazione dal portale): lo script si fida del `published` del file, quindi
+    non li esporterebbe, ed è la trappola dello «0 aggiunti»."""
+    if EXPORT_DEST is None:
+        return {"enabled": False}
+    result = export_published(ARTICLES_DIR, EXPORT_DEST, dry_run=True)
+    pendenti = None  # None = non verificabile (per esempio senza rete)
+    try:
+        local = load_local_articles()
+        pendenti = [
+            {"id": r["id"], "title": r["title"]}
+            for r in build_report()
+            if r.get("local_file") and r.get("published") is True and local[r["id"]].get("published") is not True
+        ]
+    except Exception:
+        pass
+    return {"enabled": True, "dest": str(EXPORT_DEST), "risultato": result, "pendenti": pendenti}
+
+
+def export_apply(prune: bool = False) -> dict:
+    if EXPORT_DEST is None:
+        raise ValueError("L'esportazione non è configurata: imposta EXPORT_DEST all'avvio del server.")
+    result = export_published(ARTICLES_DIR, EXPORT_DEST, prune=prune)
+    result["comando_commit"] = None
+    if result["added"] or result["updated"] or result["removed"]:
+        root = _git_root(EXPORT_DEST)
+        if root is not None:
+            rel = EXPORT_DEST.relative_to(root) if root in EXPORT_DEST.parents else pathlib.Path(".")
+            result["comando_commit"] = f'git -C "{root}" add "{rel}" && git -C "{root}" commit -m "Aggiorna {rel}"'
+    return result
+
+
 def build_report() -> list:
     local = load_local_articles()
     remote = fetch_remote_articles()
@@ -794,6 +915,15 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"username": get_username()})
             return
 
+        if self.path == "/api/export":
+            try:
+                self._send_json(export_preview())
+            except ValueError as e:
+                self._send_json({"error": str(e)}, status=409)
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
+            return
+
         if self.path == "/api/articles":
             try:
                 self._send_json(build_report())
@@ -858,6 +988,18 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self._check_host() or not self._check_write_request():
+            return
+        if self.path == "/api/export":
+            # La destinazione è EXPORT_DEST, fissata all'avvio: dal corpo si legge solo `prune`.
+            try:
+                prune = self._read_json_body().get("prune", False)
+                if not isinstance(prune, bool):
+                    raise ValueError("prune deve essere true o false.")
+                self._send_json({"ok": True, **export_apply(prune)})
+            except ValueError as e:
+                self._send_json({"error": str(e)}, status=409)
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
             return
         m = re.match(r"^/api/(import|pull|push|metadata|stato|toggle-reviewed)/(\d+)$", self.path)
         if not m:
