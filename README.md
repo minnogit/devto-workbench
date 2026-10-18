@@ -63,9 +63,18 @@ poi apri http://localhost:8787. Il server ascolta solo su `127.0.0.1`.
 | Variabile | Significato |
 |---|---|
 | `DEV_TO_API_KEY` | Obbligatoria per parlare con Dev.to. Senza, il server parte ma `/api/articles` risponde con un errore. |
-| `ARTICLES_DIR`, `ASSETS_DIR` | Dove cercare i file. Di default `articles/` e `assets/` nella cartella da cui lanci il server. |
+| `ARTICLES_DIR` | Dove cercare gli articoli. Di default `articles/` nella cartella da cui lanci il server. |
+| `ASSETS_DIR` | Dove salvare le immagini. Di default `assets/` accanto a `ARTICLES_DIR`. |
 | `PORT` | Porta del server, di default 8787. |
 | `DEVTO_USERNAME` | Nome mostrato nel titolo. Se manca lo chiede a Dev.to. |
+
+Se lo lanci dalla cartella dello strumento (per esempio mentre lo sviluppi) non trova articoli, e lo scrive all'avvio. Imposta `ARTICLES_DIR`:
+
+```bash
+ARTICLES_DIR=/percorso/del/repo-articoli/articles python3 web/server.py
+```
+
+Il pulsante «Scarica in locale» rifiuta di creare file se la cartella degli articoli è dentro il repo dello strumento.
 
 Il server non ricarica il codice da solo: dopo una modifica a `web/server.py` o `web/index.html` va riavviato.
 

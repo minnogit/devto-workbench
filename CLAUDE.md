@@ -57,7 +57,7 @@ Endpoint di scrittura, ciascuno con un pulsante che compare solo quando lo stato
 
 In lettura: `GET /api/articles` (l'elenco con gli stati), `GET /api/diff/<id>` (confronto riga per riga) e `GET /api/me` (username per il titolo).
 
-Il server legge `articles/` e `assets/` dalla cartella da cui è lanciato, o da `ARTICLES_DIR` e `ASSETS_DIR`. Dopo ogni modifica a `web/` va riavviato.
+Il server legge `articles/` dalla cartella da cui è lanciato, o da `ARTICLES_DIR`. Le immagini vanno in `ASSETS_DIR`, di default `assets/` accanto alla cartella degli articoli. Se la cartella degli articoli è dentro questo repo, l'import rifiuta di scrivere: i contenuti non vivono qui. Dopo ogni modifica a `web/` va riavviato.
 
 La vista kanban ha una colonna per stato editoriale. Trascinare una bozza tra Bozza, Revisionata e Pronta chiama `/api/stato`. La colonna Pubblicato non accetta drop.
 

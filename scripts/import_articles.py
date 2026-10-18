@@ -26,7 +26,8 @@ BASE_URL = "https://dev.to/api"
 # cartella da cui si lancia lo script, sovrascrivibili con ARTICLES_DIR e
 # ASSETS_DIR.
 ARTICLES_DIR = pathlib.Path(os.environ.get("ARTICLES_DIR", "articles")).resolve()
-ASSETS_DIR = pathlib.Path(os.environ.get("ASSETS_DIR", "assets")).resolve()
+# Le immagini seguono gli articoli: di default `assets/` accanto a ARTICLES_DIR.
+ASSETS_DIR = pathlib.Path(os.environ.get("ASSETS_DIR") or ARTICLES_DIR.parent / "assets").resolve()
 
 API_KEY = os.environ.get("DEV_TO_API_KEY")
 if not API_KEY:

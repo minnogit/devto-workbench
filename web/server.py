@@ -35,7 +35,16 @@ WEB_DIR = pathlib.Path(__file__).resolve().parent
 # cui si lancia il server (la radice del repo degli articoli), non accanto a
 # questo file, così lo strumento può vivere in un repo a parte.
 ARTICLES_DIR = pathlib.Path(os.environ.get("ARTICLES_DIR", "articles")).resolve()
-ASSETS_DIR = pathlib.Path(os.environ.get("ASSETS_DIR", "assets")).resolve()
+# Le immagini seguono gli articoli: di default `assets/` accanto alla cartella
+# degli articoli. Con la sola ARTICLES_DIR impostata non si crea così una
+# `assets/` nella cartella sbagliata (quella da cui si lancia il server).
+ASSETS_DIR = pathlib.Path(os.environ.get("ASSETS_DIR") or ARTICLES_DIR.parent / "assets").resolve()
+# Radice di questo repo (lo strumento): qui non devono finire articoli.
+TOOL_ROOT = WEB_DIR.parent
+
+
+def inside_tool_repo(path: pathlib.Path) -> bool:
+    return path == TOOL_ROOT or TOOL_ROOT in path.parents
 
 IMG_URL_RE = re.compile(r"!\[[^\]]*\]\((https?://[^\s)]+)\)")
 
@@ -246,6 +255,12 @@ def import_article_locally(article_id: int) -> dict:
     quell'id: questa funzione serve solo a creare, mai a sovrascrivere —
     per quello resta la skill devto-articles, che gestisce i conflitti.
     """
+    if inside_tool_repo(ARTICLES_DIR):
+        raise ValueError(
+            f"La cartella degli articoli ({ARTICLES_DIR}) è dentro il repo dello strumento, "
+            "che non è il posto dei contenuti. Lancia il server dalla radice del repo degli "
+            "articoli oppure imposta ARTICLES_DIR."
+        )
     local = load_local_articles()
     if article_id in local:
         raise ValueError(
@@ -730,10 +745,20 @@ def main():
         )
     print(f"Articoli letti da {ARTICLES_DIR}", file=sys.stderr)
     if not ARTICLES_DIR.is_dir():
+        if pathlib.Path.cwd().resolve() == TOOL_ROOT:
+            hint = (
+                "Stai lanciando il server dalla cartella dello strumento, che non contiene "
+                "articoli. Lancialo dalla radice del repo degli articoli, oppure da qui con "
+                "ARTICLES_DIR=/percorso/del/repo-articoli/articles"
+            )
+        else:
+            hint = (
+                "Lancia il server dalla radice del repo degli articoli oppure imposta "
+                "ARTICLES_DIR."
+            )
         print(
-            "ATTENZIONE: quella cartella non esiste, quindi ogni articolo risulterà "
-            "«solo su Dev.to». Lancia il server dalla radice del repo degli articoli "
-            "oppure imposta ARTICLES_DIR.",
+            "ATTENZIONE: la cartella degli articoli non esiste, quindi ogni articolo "
+            "risulterà «solo su Dev.to». " + hint,
             file=sys.stderr,
         )
     server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
