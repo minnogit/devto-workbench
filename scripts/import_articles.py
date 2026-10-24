@@ -21,6 +21,9 @@ import unicodedata
 
 import httpx
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "web"))
+import server  # noqa: E402  (solo per la lettura a pagine degli elenchi, condivisa con la pagina web)
+
 BASE_URL = "https://dev.to/api"
 # Stessa convenzione di web/server.py: di default `articles/` e `assets/` nella
 # cartella da cui si lancia lo script, sovrascrivibili con ARTICLES_DIR e
@@ -48,9 +51,11 @@ def fetch_all_mine() -> list[dict]:
     articles = []
     with httpx.Client(headers=HEADERS, timeout=30.0) as client:
         for path in ("/articles/me", "/articles/me/unpublished"):
-            resp = client.get(f"{BASE_URL}{path}")
-            resp.raise_for_status()
-            articles.extend(resp.json())
+            def get_page(page: int, per_page: int, path: str = path) -> list:
+                resp = client.get(f"{BASE_URL}{path}", params={"per_page": per_page, "page": page})
+                resp.raise_for_status()
+                return resp.json()
+            articles.extend(server.fetch_paginated(get_page))
     return articles
 
 

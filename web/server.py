@@ -167,26 +167,57 @@ def load_local_articles() -> dict:
     return local
 
 
+LIST_PER_PAGE = 100
+LIST_MAX_PAGES = 50
+
+
+def fetch_paginated(get_page, per_page: int = LIST_PER_PAGE, max_pages: int = LIST_MAX_PAGES) -> list:
+    """Legge un elenco di Dev.to a pagine. Gli endpoint /articles/me... restituiscono
+    30 voci per pagina se non si dice altro: senza `page` un elenco più lungo verrebbe
+    troncato in silenzio. `get_page(page, per_page)` restituisce la lista di una pagina.
+    Si ferma alla prima pagina con meno di `per_page` voci; se il tetto di pagine
+    non basta solleva un errore invece di restituire un elenco incompleto."""
+    items, seen = [], set()
+    for page in range(1, max_pages + 1):
+        batch = get_page(page, per_page)
+        for a in batch:
+            # se un articolo cambia tra una richiesta e l'altra l'elenco scorre e una voce si ripete
+            if a["id"] not in seen:
+                seen.add(a["id"])
+                items.append(a)
+        if len(batch) < per_page:
+            return items
+    raise RuntimeError(
+        f"L'elenco ha più di {max_pages * per_page} articoli: interrotto per non mostrarne uno incompleto."
+    )
+
+
 def fetch_remote_articles() -> list:
     if not API_KEY:
         raise RuntimeError(
             "DEV_TO_API_KEY non impostata nell'ambiente del server "
             "(export DEV_TO_API_KEY=... prima di avviarlo)."
         )
+
+    def get_page(path: str):
+        def fetch(page: int, per_page: int) -> list:
+            req = urllib.request.Request(
+                f"{API_BASE}{path}?per_page={per_page}&page={page}",
+                headers={
+                    "api-key": API_KEY,
+                    # senza uno User-Agent "da browser" alcuni endpoint di
+                    # dev.to rispondono 403 (bloccano lo user-agent di default
+                    # di urllib.request).
+                    "User-Agent": "Mozilla/5.0 devto-articles-web/1.0",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        return fetch
+
     articles = []
     for path in ("/articles/me", "/articles/me/unpublished"):
-        req = urllib.request.Request(
-            f"{API_BASE}{path}",
-            headers={
-                "api-key": API_KEY,
-                # senza uno User-Agent "da browser" alcuni endpoint di
-                # dev.to rispondono 403 (bloccano lo user-agent di default
-                # di urllib.request).
-                "User-Agent": "Mozilla/5.0 devto-articles-web/1.0",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            articles.extend(json.loads(resp.read().decode("utf-8")))
+        articles.extend(fetch_paginated(get_page(path)))
     return articles
 
 
