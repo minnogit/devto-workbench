@@ -27,6 +27,7 @@ import subprocess
 import sys
 import unicodedata
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -255,8 +256,27 @@ def slugify(title: str) -> str:
     return text[:80] or "untitled"
 
 
-def download_assets(body_markdown: str, article_id) -> None:
+# Dev.to restituisce la copertina passata dal suo ridimensionatore:
+# https://media2.dev.to/dynamic/image/<opzioni>/<URL originale codificato>
+COVER_RESIZER_RE = re.compile(r"^https?://media\d*\.dev\.to/dynamic/image/[^/]+/(.+)$")
+
+
+def cover_source_url(cover_image: str | None) -> str | None:
+    """URL dell'immagine di copertina così come è stata caricata, senza il
+    ridimensionamento: è quella da salvare in assets/. Un URL in un'altra
+    forma resta com'è."""
+    if not cover_image:
+        return None
+    m = COVER_RESIZER_RE.match(cover_image)
+    return urllib.parse.unquote(m.group(1)) if m else cover_image
+
+
+def download_assets(body_markdown: str, article_id, cover_image: str | None = None) -> None:
+    """Copia in assets/<id>/ le immagini del testo e la copertina."""
     urls = IMG_URL_RE.findall(body_markdown)
+    cover = cover_source_url(cover_image)
+    if cover:
+        urls.append(cover)
     if not urls:
         return
     out_dir = ASSETS_DIR / str(article_id)
@@ -342,7 +362,7 @@ def import_article_locally(article_id: int) -> dict:
         "devto_synced_hash": body_hash,
     }
     write_local_article(path, front_matter, body)
-    download_assets(body, article_id)
+    download_assets(body, article_id, article.get("cover_image"))
 
     return {"file": filename}
 
@@ -390,7 +410,7 @@ def pull_article(article_id: int) -> dict:
         **local_only_fields(loc, article["published"]),
     }
     write_local_article(loc["path"], front_matter, body)
-    download_assets(body, article_id)
+    download_assets(body, article_id, article.get("cover_image"))
 
     return {"file": loc["file"]}
 

@@ -59,8 +59,13 @@ def fetch_all_mine() -> list[dict]:
     return articles
 
 
-def download_images(body_markdown: str, article_id: int, client: httpx.Client) -> None:
+def download_images(body_markdown: str, article_id: int, client: httpx.Client,
+                    cover_image: str | None = None) -> None:
+    """Copia in assets/<id>/ le immagini del testo e la copertina."""
     urls = IMG_URL_RE.findall(body_markdown)
+    cover = server.cover_source_url(cover_image)
+    if cover:
+        urls.append(cover)
     if not urls:
         return
     out_dir = ASSETS_DIR / str(article_id)
@@ -119,7 +124,7 @@ def main() -> None:
             path = write_article_file(article)
             state = "published" if article["published"] else "draft"
             print(f"[{state}] {article['id']} -> {path}")
-            download_images(article["body_markdown"], article["id"], client)
+            download_images(article["body_markdown"], article["id"], client, article.get("cover_image"))
 
 
 if __name__ == "__main__":

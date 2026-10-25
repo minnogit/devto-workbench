@@ -25,7 +25,7 @@ Gli articoli non stanno qui. Servono un repo a parte, meglio privato perché le 
 ```
 il-tuo-repo/
   articles/<id>-<slug>.md     un file per articolo
-  assets/<id>/                copia offline delle immagini (facoltativa)
+  assets/<id>/                copia offline delle immagini e della copertina (facoltativa)
 ```
 
 Il nome del file è comodo ma non conta: l'identificatore è l'`id` nel front-matter. Il front-matter ha una riga per campo, nella forma `chiave: <valore JSON>` (non è YAML vero, anche se ci assomiglia):
